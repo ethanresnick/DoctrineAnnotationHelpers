@@ -12,4 +12,6 @@ namespace ERD\AnnotationHelpers;
 interface PowerReaderInterface extends \Doctrine\Common\Annotations\Reader
 {
     public function getPropertyAnnotationsFromClass(\ReflectionProperty $reflProp, \ReflectionClass $reflClass, $annotationName, $forField='for');
+
+    public function getClassAnnotations(\ReflectionClass $class, $annotationName = null);
 }
