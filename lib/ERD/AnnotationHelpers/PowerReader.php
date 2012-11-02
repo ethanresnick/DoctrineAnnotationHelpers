@@ -184,9 +184,7 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
         if($reflProp->getDeclaringClass()==$reflClass)
         {
             return array_merge(
-                array_reverse(
-                    $this->getPropertyAnnotations($reflProp, $annotationName)
-                ),
+                array_reverse($this->getPropertyAnnotations($reflProp, $annotationName)),
                $classLevelAnnotations
             );
         }
@@ -197,11 +195,42 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
     /**
      * For the given ReflectionProperty, returns all its annotations (property and class-level) from its class and all its
      * parents, ordered from highest-precedence to lowest by the rules outlined in {@see getPropertyAnnotationsFromClass()}.
-
-    public function getPropertyAnnotationsFromThroughoutHierarchy(\ReflectionProperty $reflProp, $annotationName, $forField='for')
-    {
-
-    }
+     *
+     * @param \ReflectionProperty $reflProp The property for which we're looking for annotations.
+     * @param \ReflectionClass $reflClass The class that our search will start at/go up from. (May not be the same
+     * class where the property was defined, if we want to look in a subclass that didn't redeclare the property).
+     * @param string $annotationName The FCQN of annotations we're looking for.
+     * @param string $forField See {@see getClassLevelPropertyAnnotations()}.
      */
+    public function getPropertyAnnotationsFromHierarchy(\ReflectionProperty $reflProp, \ReflectionClass $reflClass, $annotationName, $forField='for')
+    {
+        if(!$reflClass->hasProperty($reflProp->getName()))
+        {
+            throw new \InvalidArgumentException("Property does not exist in this class");
+        }
+
+        $annotations = array();
+        do
+        {
+            $annotations = array_merge(
+                $annotations,
+                $this->getPropertyAnnotationsFromClass($reflProp, $reflClass, $annotationName, $forField)
+            );
+        }
+        while($reflClass = $reflClass->getParentClass());
+
+        return $annotations;
+    }
+
+    public function getCompositePropertyAnnotationFromHierarchy(InheritableAnnotation $emptyAnnotation, \ReflectionProperty $reflProp, \ReflectionClass $reflClass, $annotationName)
+    {
+        $annotations = $this->getPropertyAnnotationsFromHierarchy($reflProp, $reflClass, $annotationName);
+        foreach($annotations as $annotation)
+        {
+            $emptyAnnotation->mergeIn($annotation, false);
+        }
+
+        return $emptyAnnotation;
+    }
 }
 
