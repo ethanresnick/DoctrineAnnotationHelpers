@@ -13,8 +13,9 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
      * @param \ReflectionClass $class The class to search for the annotation
      * @param string $annotationName The FCQN of the annotation
      * @param boolean $isInherited Whether to count annotations of this type from parent classes.
+     * @return boolean Whether the class has the annotation.
      */
-    public function hasClassAnnotation(\ReflectionClass $class, $annotationName, $isInherited)
+    public function hasClassAnnotation(\ReflectionClass $class, $annotationName, $isInherited = false)
     {
         $hasAnnotation = ($this->getClassAnnotation($class, $annotationName) !== null);
 
@@ -22,11 +23,62 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
         {
             while(($class = $class->getParentClass()) && !$hasAnnotation)
             {
-                $hasAnnotation = ($this->getClassAnnotation($class, $annotationName)!==null);
+                $hasAnnotation = ($this->getClassAnnotation($class, $annotationName) !== null);
             }
         }
 
         return $hasAnnotation;
+    }
+
+    /**
+     * Extends {@see parent::getClassAnnotations()} to optionally filter the resulting annotations.
+     *
+     * @param \ReflectionClass $class The class whose annotations to read
+     * @param null|string $annotationName If specified, only annotations of this FCQN will be returned.
+     *
+     * @return array
+     */
+    public function getClassAnnotations(\ReflectionClass $class, $annotationName = null)
+    {
+        $annotations = parent::getClassAnnotations($class);
+
+        if($annotationName != null)
+        {
+            $annotations = array_filter($annotations, function($annotation) use ($annotationName) {
+                    return $annotation instanceof $annotationName;
+                });
+        }
+
+        return (array) $annotations;
+    }
+
+    /**
+     * Extends {@see parent::getPropertyAnnotations()} to optionally filter the resulting annotations.
+     *
+     * {@see getPropertyAnnotation()} takes a name too, but only returns the first matching annotation.
+     * This methods returns all matching annotations.
+     *
+     * Just as a note, this method only reads the annotations out of the docblock directly associated
+     * with this property where it was declared; it doesn't read associated class-level annotations or
+     * go up the hierarchy.
+     *
+     * @param \ReflectionProperty $property The property whose annotations to read
+     * @param null|string $annotationName If specified, only annotations of this FCQN will be returned.
+     *
+     * @return array The matching annotations. If none are found, an empty array is returned.
+     */
+    public function getPropertyAnnotations(\ReflectionProperty $property, $annotationName = null)
+    {
+        $annotations = parent::getPropertyAnnotations($property);
+
+        if($annotationName != null)
+        {
+            $annotations = array_filter($annotations, function($annotation) use ($annotationName) {
+                    return $annotation instanceof $annotationName;
+                });
+        }
+
+        return (array) $annotations;
     }
 
     /**
@@ -50,6 +102,7 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
      * @param string $forField Name of the property in the annotation class that stores
      *                         which property in the object the annotation is referring to.
      * @return array The matching annotations.
+     * @throws \InvalidArgumentException On an invalid for field.
      */
     public function getClassLevelPropertyAnnotations(\ReflectionClass $class, $propName, $annotationName, $forField='for')
     {
@@ -97,57 +150,6 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
     }
 
     /**
-     * Extends {@see parent::getPropertyAnnotations()} to optionally filter the resulting annotations.
-     *
-     * {@see getPropertyAnnotation()} takes a name too, but only returns the first matching annotation.
-     * This methods returns all matching annotations.
-     *
-     * Just as a note, this method only reads the annotations out of the docblock directly associated
-     * with this property where it was declared; it doesn't read associated class-level annotations or
-     * go out the hierarchy.
-     *
-     * @param \ReflectionProperty $property The property whose annotations to read
-     * @param null|string $annotationName If specified, only annotations of this FCQN will be returned.
-     *
-     * @return array The matching annotations. If none are found, an empty array is returned.
-     */
-    public function getPropertyAnnotations(\ReflectionProperty $property, $annotationName = null)
-    {
-        $annotations = parent::getPropertyAnnotations($property);
-
-        if($annotationName != null)
-        {
-            $annotations = array_filter($annotations, function($annotation) use ($annotationName) {
-                return $annotation instanceof $annotationName;
-            });
-        }
-
-        return (array) $annotations;
-    }
-
-    /**
-     * Extends {@see parent::getClassAnnotations()} to optionally filter the resulting annotations.
-     *
-     * @param \ReflectionClass $class The class whose annotations to read
-     * @param null|string $annotationName If specified, only annotations of this FCQN will be returned.
-     *
-     * @return array
-     */
-    public function getClassAnnotations(\ReflectionClass $class, $annotationName = null)
-    {
-        $annotations = parent::getClassAnnotations($class);
-
-        if($annotationName != null)
-        {
-            $annotations = array_filter($annotations, function($annotation) use ($annotationName) {
-                    return $annotation instanceof $annotationName;
-                });
-        }
-
-        return $annotations;
-    }
-
-    /**
      * Returns a precedence-ordered set of annotations found for this property directly in the provided $reflClass.
      *
      * Looks in the provided ReflectionClass for annotations of the provided ReflectionProperty that are of class
@@ -161,14 +163,14 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
      * returned array. The result is that the resulting array can thought to hold all the annotations for this
      * property from this class ordered from highest precedence to lowest precedence.
      *
-     * Calling this function while looping up the class hierachy makes it very easy to implement annotations that
+     * Calling this function while looping up the class hierarchy makes it very easy to implement annotations that
      * inherit from parent annotations.
      *
      * @param \ReflectionProperty $reflProp The property for which we're looking for annotations.
      * @param \ReflectionClass $reflClass The class that our search will be contained to. (May not be the same
      * class where the property was defined, if we want to look in a subclass that didn't redeclare the property).
      * @param string $annotationName The FCQN of annotations we're looking for
-     * @param string $for See {@see getClassLevelPropertyAnnotations()}.
+     * @param string $forField Name of the property in the annotation class storing the name of the property that the annotation is for.
      *
      * @return array The matching annotation objects, ordered by precedence.
      */
@@ -201,6 +203,8 @@ class PowerReader extends \Doctrine\Common\Annotations\AnnotationReader implemen
      * class where the property was defined, if we want to look in a subclass that didn't redeclare the property).
      * @param string $annotationName The FCQN of annotations we're looking for.
      * @param string $forField See {@see getClassLevelPropertyAnnotations()}.
+     * @return array The resulting annotations.
+     * @throws \InvalidArgumentException The property doesn't exist in the starting class.
      */
     public function getPropertyAnnotationsFromHierarchy(\ReflectionProperty $reflProp, \ReflectionClass $reflClass, $annotationName, $forField='for')
     {

@@ -14,10 +14,18 @@ class FileCachePowerReader extends \Doctrine\Common\Annotations\FileCacheReader 
 
     public function __construct(PowerReader $reader, $cacheDir, $debug = false)
     {
-        //capture the reader before the parent locks it private. Stupid inextensible Doctrine.
+        //capture the reader before the parent locks it private. Ugh.
         $this->hackedReader = $reader;
 
         parent::__construct($reader, $cacheDir, $debug);
+    }
+
+    public function getClassAnnotations(\ReflectionClass $class, $annotationName = null)
+    {
+        //same strategy as getPropertyAnnotations
+        return ($annotationName==null) ?
+            parent::getClassAnnotations($class) :
+            $this->hackedReader->getClassAnnotations($class, $annotationName);
     }
 
     public function getPropertyAnnotations(\ReflectionProperty $property, $annotationName = null)
@@ -29,14 +37,6 @@ class FileCachePowerReader extends \Doctrine\Common\Annotations\FileCacheReader 
 
         //otherwise, go to the PowerReader, which will in turn hit the cache for the unfiltered values
         return $this->hackedReader->getPropertyAnnotations($property, $annotationName);
-    }
-
-    public function getClassAnnotations(\ReflectionClass $class, $annotationName = null)
-    {
-        //same strategy as getPropertyAnnotations
-        return ($annotationName==null) ?
-            parent::getClassAnnotations($class) :
-            $this->hackedReader->getClassAnnotations($class, $annotationName);
     }
 
     /**
